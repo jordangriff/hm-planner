@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lamontagne Honeymoon Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Integration -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Roboto Condensed', sans-serif;
+            background-color: #0f172a; /* slate-900 */
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+            border-radius: 0.75rem; /* lg */
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 4px;
+        }
+        .day-cell {
+            transition: all 0.2s ease-in-out;
+            border-radius: 0.5rem;
+        }
+        .day-header {
+            font-size: 0.75rem;
+            color: #94a3b8; /* slate-400 */
+        }
+        .plan-item {
+            font-size: 0.9rem;
+            padding: 6px;
+            margin-top: 4px;
+            border-radius: 0.375rem; /* md */
+            display: flex;
+            align-items: center;
+        }
+        .plan-item i { /* Target Font Awesome icons in calendar */
+            flex-shrink: 0;
+            margin-right: 6px;
+        }
+        /* Custom Marker Styling */
+        .map-marker {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            border: 2px solid white;
+            transition: opacity 0.2s;
+            color: white; /* Color for the icon */
+            font-size: 16px; /* Size for the icon */
+        }
+        .map-marker.recommended {
+            opacity: 0.6;
+            border-style: dashed;
+        }
+        /* InfoWindow styling */
+        .gm-style .gm-style-iw-c {
+            padding: 0 !important;
+            border-radius: 12px !important;
+            background-color: #1e293b !important; /* slate-800 */
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
+        }
+        .gm-style .gm-style-iw-d {
+            overflow: hidden !important;
+            color: #e2e8f0; /* slate-200 */
+        }
+        .gm-style .gm-style-iw-d h3 {
+             color: #f1f5f9; /* slate-100 */
+        }
+        /* InfoWindow Photo Carousel */
+        .photo-carousel {
+            position: relative;
+            width: 288px; /* w-72 */
+            height: 192px; /* h-48 */
+        }
+        .carousel-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 11px 11px 0 0;
+            background-color: #334155; /* slate-700 */
+        }
+        .carousel-button {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: rgba(0, 0, 0, 0.4);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s ease;
+        }
+        .carousel-button:hover {
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+        .carousel-button.prev {
+            left: 8px;
+        }
+        .carousel-button.next {
+            right: 8px;
+        }
+        .carousel-counter {
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+        }
+
+        /* Tab styling */
+        .tab-button.active {
+            border-color: #0ea5e9; /* sky-500 */
+            color: #0ea5e9;
+            background-color: #1e293b; /* slate-800 */
+        }
+        .tab-button {
+             border-bottom-width: 2px;
+             border-color: transparent;
+        }
+        /* Draggable item styling */
+        .place-list-item {
+            cursor: grab;
+            transition: background-color 0.2s ease;
+        }
+        .place-list-item:active {
+            cursor: grabbing;
+        }
+        .dragging {
+            opacity: 0.6;
+            background: #0284c7; /* sky-600 */
+        }
+        /* Sticky header for day sections */
+        .day-section-header {
+            position: sticky;
+            top: 0;
+            background-color: #1e293b; /* slate-800 */
+            z-index: 10;
+        }
+        .day-section-header.collapsible {
+             cursor: pointer;
+        }
+        .day-section-header .collapsible-icon {
+            transition: transform 0.2s ease-in-out;
+        }
+        .day-place-list {
+            min-height: 40px; /* Provides a drop target for empty days */
+        }
+        .category-select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+            background-repeat: no-repeat;
+            background-position: right 0.7em top 50%, 0 0;
+            background-size: 0.65em auto, 100%;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
+    </style>
+</head>
+<body class="text-slate-200">
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50">
+        <div class="w-full max-w-sm p-8 bg-slate-800 rounded-2xl shadow-xl">
+            <h2 class="text-3xl font-bold text-slate-100 text-center mb-2">Honeymoon Planner 💍</h2>
+            <p class="text-center text-slate-400 mb-6">Please log in to continue</p>
+            <div class="space-y-4">
+                <div>
+                    <label for="email" class="block text-sm font-medium text-slate-300">Email Address</label>
+                    <input type="email" id="email" class="mt-1 block w-full rounded-md bg-slate-700 border-slate-600 text-slate-200 shadow-sm focus:border-sky-500 focus:ring-sky-500">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-slate-300">Password</label>
+                    <input type="password" id="password" class="mt-1 block w-full rounded-md bg-slate-700 border-slate-600 text-slate-200 shadow-sm focus:border-sky-500 focus:ring-sky-500">
+                </div>
+            </div>
+            <div id="login-error" class="mt-4 text-center text-red-400 text-sm"></div>
+            <div class="mt-6">
+                <button id="login-button" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500">
+                    Log In
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Screen (Initially Hidden) -->
+    <div id="app-screen" class="hidden flex flex-col lg:flex-row h-screen">
+        <!-- Left Panel: Controls and Content -->
+        <div id="left-panel" class="w-full lg:w-1/2 p-4 overflow-y-auto flex flex-col">
+            <div class="bg-slate-800 p-6 rounded-xl shadow-lg flex-grow flex flex-col">
+                 <div class="flex justify-between items-center">
+                    <h1 class="text-3xl font-bold text-slate-100">Lamontagne Honeymoon 💍❤️</h1>
+                    <button id="logout-button" class="inline-flex items-center px-3 py-2 border border-slate-600 rounded-md shadow-sm text-sm font-medium text-slate-300 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500">
+                        Logout
+                    </button>
+                 </div>
+
+                 <div id="error-message" class="mt-6 p-3 bg-red-500/20 text-red-300 border border-red-500/30 rounded-md hidden"></div>
+                 <div id="success-message" class="mt-6 p-3 bg-green-500/20 text-green-300 border border-green-500/30 rounded-md hidden"></div>
+                
+                <!-- Tabs -->
+                <div class="mt-6 border-b border-slate-700">
+                    <nav class="-mb-px flex space-x-4" aria-label="Tabs">
+                        <button id="tab-places" class="tab-button whitespace-nowrap py-3 px-1 font-medium text-sm text-slate-400 hover:text-slate-200 hover:border-slate-500 active">
+                            Places & Itinerary
+                        </button>
+                         <button id="tab-recommend" class="tab-button whitespace-nowrap py-3 px-1 font-medium text-sm text-slate-400 hover:text-slate-200 hover:border-slate-500">
+                            Recommended
+                        </button>
+                        <button id="tab-calendar" class="tab-button whitespace-nowrap py-3 px-1 font-medium text-sm text-slate-400 hover:text-slate-200 hover:border-slate-500">
+                            Calendar
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Tab Content -->
+                <div class="flex-grow mt-4 overflow-y-auto flex flex-col">
+                    <div id="places-content" class="flex-grow flex flex-col">
+                        <div class="flex space-x-2 mb-4 p-2 bg-slate-900 rounded-lg">
+                            <input type="text" id="add-place-input" class="flex-grow block w-full rounded-md bg-slate-700 border-slate-600 text-slate-200 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm" placeholder="Paste Google Maps link or type place name">
+                            <select id="add-to-day-select" class="rounded-md bg-slate-700 border-slate-600 text-slate-200 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm"></select>
+                            <button id="add-place-button" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500">
+                                <span id="add-button-text">Add</span>
+                                <div id="add-loader" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin hidden ml-2"></div>
+                            </button>
+                        </div>
+                        <div id="places-list" class="flex-grow overflow-y-auto">
+                           <!-- Day sections will be rendered here -->
+                        </div>
+                    </div>
+                    
+                    <div id="recommend-content" class="hidden flex-grow flex flex-col">
+                        <div class="flex space-x-2 mb-4 p-2 bg-slate-900 rounded-lg">
+                            <input type="text" id="recommend-prompt-input" class="flex-grow block w-full rounded-md bg-slate-700 border-slate-600 text-slate-200 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm" placeholder="e.g., italian food near Cap d'Antibes">
+                             <button id="recommend-button" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                                <span id="recommend-button-text">Find</span>
+                                <div id="recommend-loader" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin hidden ml-2"></div>
+                            </button>
+                             <button id="clear-recommend-button" class="inline-flex items-center px-4 py-2 border border-slate-600 rounded-md shadow-sm text-sm font-medium text-slate-300 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500">
+                                Clear
+                            </button>
+                        </div>
+                        <div id="recommendations-list" class="flex-grow overflow-y-auto space-y-4">
+                            <p class="text-slate-400 text-center">Use the search bar above to get AI recommendations.</p>
+                        </div>
+                    </div>
+
+                    <div id="calendar-content" class="hidden">
+                         <div class="mt-1 text-sm text-slate-400 text-center font-semibold" id="calendar-header"></div>
+                         <div class="mt-4">
+                            <div class="calendar-grid text-center font-semibold text-slate-400 day-header">
+                                <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                            </div>
+                            <div id="calendar" class="calendar-grid mt-1"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Map -->
+        <div id="map-panel" class="w-full lg:w-1/2 p-4 relative">
+            <div id="map-container" class="bg-slate-800 rounded-xl shadow-lg h-full">
+                <div id="map"></div>
+                <div id="map-legend" class="absolute bottom-6 left-6 bg-slate-900/80 backdrop-blur-sm p-3 rounded-lg shadow-lg z-10 hidden">
+                    <h4 class="font-semibold text-sm text-slate-200 mb-2">Legend</h4>
+                    <div id="legend-items" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        // --- Firebase Integration ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDYgeuU5bk8ySg8_wfTiDi9N86ZZiF6bqw",
+            authDomain: "honeymoon-planner-be206.firebaseapp.com",
+            projectId: "honeymoon-planner-be206",
+            storageBucket: "honeymoon-planner-be206.appspot.com",
+            messagingSenderId: "615273730204",
+            appId: "1:615273730204:web:bb08668c7214459e2edd59"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        let planDocRef;
+        let unsubscribe; // To detach the Firestore listener on logout
+
+        // --- State and Config ---
+        const Maps_API_KEY = 'AIzaSyCcIe_OvTN1NOSHXk6xvAFYhN8Vs8_p_YQ';
+        const GEMINI_API_KEY = "";
+
+        let state = {
+            structuredPlan: [],
+            recommendations: [],
+            mapReady: false,
+            tripStartDate: '2025-08-20',
+            dayNotes: {}
+        };
+        const categoryIcons = {
+            hotel: { className: 'fa-solid fa-bed', bgColor: '#dc2626', label: 'Hotel' },
+            restaurant: { className: 'fa-solid fa-utensils', bgColor: '#16a34a', label: 'Restaurant' },
+            bar: { className: 'fa-solid fa-martini-glass-citrus', bgColor: '#06b6d4', label: 'Bar' },
+            activity: { className: 'fa-solid fa-camera-retro', bgColor: '#ca8a04', label: 'Activity' },
+            museum: { className: 'fa-solid fa-landmark', bgColor: '#7c3aed', label: 'Museum' },
+            antique: { className: 'fa-solid fa-gem', bgColor: '#db2777', label: 'Antique Shop' },
+            swimming: { className: 'fa-solid fa-person-swimming', bgColor: '#2563eb', label: 'Swimming' }
+        };
+        const TOTAL_TRIP_DAYS = 11;
+        const UNDETERMINED_KEY = 'undetermined';
+        const mapStyleDark = [{"elementType":"geometry","stylers":[{"color":"#242f3e"}]},{"elementType":"labels.text.fill","stylers":[{"color":"#746855"}]},{"elementType":"labels.text.stroke","stylers":[{"color":"#242f3e"}]},{"featureType":"administrative.locality","elementType":"labels.text.fill","stylers":[{"color":"#d59563"}]},{"featureType":"poi","elementType":"labels.text.fill","stylers":[{"color":"#d59563"}]},{"featureType":"poi.park","elementType":"geometry","stylers":[{"color":"#263c3f"}]},{"featureType":"poi.park","elementType":"labels.text.fill","stylers":[{"color":"#6b9a76"}]},{"featureType":"road","elementType":"geometry","stylers":[{"color":"#38414e"}]},{"featureType":"road","elementType":"geometry.stroke","stylers":[{"color":"#212a37"}]},{"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#9ca5b3"}]},{"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#746855"}]},{"featureType":"road.highway","elementType":"geometry.stroke","stylers":[{"color":"#1f2835"}]},{"featureType":"road.highway","elementType":"labels.text.fill","stylers":[{"color":"#f3d19c"}]},{"featureType":"transit","elementType":"geometry","stylers":[{"color":"#2f3948"}]},{"featureType":"transit.station","elementType":"labels.text.fill","stylers":[{"color":"#d59563"}]},{"featureType":"water","elementType":"geometry","stylers":[{"color":"#17263c"}]},{"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#515c6d"}]},{"featureType":"water","elementType":"labels.text.stroke","stylers":[{"color":"#17263c"}]}];
+
+        // --- DOM Elements ---
+        const loginScreen = document.getElementById('login-screen'), appScreen = document.getElementById('app-screen'), loginButton = document.getElementById('login-button'), emailInput = document.getElementById('email'), passwordInput = document.getElementById('password'), loginError = document.getElementById('login-error'), logoutButton = document.getElementById('logout-button'), leftPanel = document.getElementById('left-panel'), mapPanel = document.getElementById('map-panel'), calendarDiv = document.getElementById('calendar'), calendarHeader = document.getElementById('calendar-header'), mapDiv = document.getElementById('map'), mapLegend = document.getElementById('map-legend'), legendItems = document.getElementById('legend-items'), errorMessageDiv = document.getElementById('error-message'), successMessageDiv = document.getElementById('success-message'), tabPlaces = document.getElementById('tab-places'), tabCalendar = document.getElementById('tab-calendar'), tabRecommend = document.getElementById('tab-recommend'), placesContent = document.getElementById('places-content'), calendarContent = document.getElementById('calendar-content'), recommendContent = document.getElementById('recommend-content'), placesList = document.getElementById('places-list'), addPlaceButton = document.getElementById('add-place-button'), addPlaceInput = document.getElementById('add-place-input'), daySelect = document.getElementById('add-to-day-select'), addButtonText = document.getElementById('add-button-text'), addLoader = document.getElementById('add-loader'), recommendButton = document.getElementById('recommend-button'), recommendPromptInput = document.getElementById('recommend-prompt-input'), recommendationsList = document.getElementById('recommendations-list'), recommendButtonText = document.getElementById('recommend-button-text'), recommendLoader = document.getElementById('recommend-loader'), clearRecommendButton = document.getElementById('clear-recommend-button');
+
+        // --- Google Maps Variables ---
+        let map, geocoder, infoWindow, placesService, directionsService;
+        let markers = [], recommendationMarkers = [], directionsRenderers = [];
+
+        // --- Authentication Logic ---
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                // User is signed in.
+                loginScreen.classList.add('hidden');
+                appScreen.classList.remove('hidden');
+                planDocRef = doc(db, 'plans', user.uid);
+                listenToPlanChanges();
+            } else {
+                // User is signed out.
+                loginScreen.classList.remove('hidden');
+                appScreen.classList.add('hidden');
+                if(unsubscribe) unsubscribe(); // Stop listening to old data
+            }
+        });
+
+        loginButton.addEventListener('click', () => {
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            signInWithEmailAndPassword(auth, email, password)
+                .catch(error => {
+                    loginError.textContent = "Invalid email or password.";
+                    console.error("Login Error:", error);
+                });
+        });
+        
+        logoutButton.addEventListener('click', () => {
+            signOut(auth);
+        });
+
+
+        // --- Firestore Data Handling ---
+        function listenToPlanChanges() {
+             if (unsubscribe) unsubscribe(); // Detach any previous listener
+             unsubscribe = onSnapshot(planDocRef, (doc) => {
+                if (doc.exists()) {
+                    const data = doc.data();
+                    state.structuredPlan = data.structuredPlan || [];
+                    state.tripStartDate = data.tripStartDate || '2025-08-20';
+                    state.dayNotes = data.dayNotes || {};
+                } else {
+                    // If no document exists, create one with default empty state
+                     setDoc(planDocRef, { structuredPlan: [], tripStartDate: state.tripStartDate, dayNotes: {} });
+                }
+                renderAll();
+            });
+        }
+        
+        async function saveStateToFirestore() {
+            if (!planDocRef) return;
+            try {
+                const stateToSave = {
+                    structuredPlan: state.structuredPlan,
+                    tripStartDate: state.tripStartDate,
+                    dayNotes: state.dayNotes
+                };
+                await setDoc(planDocRef, stateToSave, { merge: true });
+            } catch (e) {
+                showError("Could not save plan. Check connection.");
+                console.error("Firestore save error: ", e);
+            }
+        }
+
+
+        // --- Initialization ---
+        async function initMap() {
+            const { Map } = await google.maps.importLibrary("maps");
+            const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+            map = new Map(mapDiv, { center: { lat: 40.7, lng: -74 }, zoom: 5, mapId: 'TRIP_PLANNER_MAP_DARK', styles: mapStyleDark });
+            window.AdvancedMarkerElement = AdvancedMarkerElement; 
+            geocoder = new google.maps.Geocoder();
+            infoWindow = new google.maps.InfoWindow({ content: '<div class="p-4 text-center">Loading...</div>' });
+            placesService = new google.maps.places.PlacesService(map);
+            directionsService = new google.maps.DirectionsService();
+            state.mapReady = true;
+        }
+
+        // --- Render Functions ---
+        function renderAll() {
+            renderPlacesList();
+            renderCalendar();
+            renderMapElements();
+            renderRecommendationsList();
+        }
+
+        function renderMapElements() {
+            clearItineraryFromMap();
+            const planWithDates = state.structuredPlan.filter(item => item.date !== UNDETERMINED_KEY);
+            if (!state.mapReady) return;
+
+            if (planWithDates.length > 0 || state.recommendations.length > 0) {
+                mapLegend.classList.remove('hidden');
+            } else { mapLegend.classList.add('hidden'); }
+
+            planWithDates.forEach(item => {
+                if (item.lat && item.lng) {
+                    const position = { lat: item.lat, lng: item.lng };
+                    createMarker(position, item.id, item.category, false);
+                }
+            });
+            
+            renderRoutes();
+            focusMapOnAll();
+        }
+        
+        function renderRecommendationMapElements() {
+             clearRecommendationsFromMap();
+             if (!state.mapReady) return;
+             state.recommendations.forEach(item => {
+                if (item.lat && item.lng) {
+                    const position = { lat: item.lat, lng: item.lng };
+                    createMarker(position, item.id, item.category, true);
+                }
+            });
+        }
+
+        function clearItineraryFromMap() {
+            markers.forEach(marker => { marker.map = null; });
+            markers = [];
+            directionsRenderers.forEach(renderer => { renderer.setMap(null); });
+            directionsRenderers = [];
+            infoWindow.close();
+        }
+        
+        function clearRecommendationsFromMap() {
+            recommendationMarkers.forEach(marker => { marker.map = null; });
+            recommendationMarkers = [];
+        }
+
+        function renderRoutes() {
+            directionsRenderers.forEach(renderer => renderer.setMap(null));
+            directionsRenderers = [];
+            const hotels = state.structuredPlan.filter(item => item.category.toLowerCase() === 'hotel' && item.date !== UNDETERMINED_KEY).sort((a,b) => new Date(a.date) - new Date(b.date));
+            if (hotels.length > 1) {
+                for (let i = 0; i < hotels.length - 1; i++) {
+                    drawRoute(hotels[i].location, hotels[i+1].location);
+                }
+            }
+        }
+        
+        function renderPlacesList() {
+            placesList.innerHTML = '';
+            populateDaySelect();
+            const undeterminedItems = state.structuredPlan.filter(item => item.date === UNDETERMINED_KEY);
+            const undeterminedWrapper = document.createElement('div');
+            undeterminedWrapper.className = 'day-section mb-4';
+            const undeterminedHeader = document.createElement('h3');
+            undeterminedHeader.className = 'day-section-header collapsible flex justify-between items-center text-lg font-semibold text-slate-100 mb-2 py-2 border-b border-slate-700';
+            undeterminedHeader.innerHTML = `<span>Undetermined</span><i class="collapsible-icon fa-solid fa-chevron-down"></i>`;
+            undeterminedWrapper.appendChild(undeterminedHeader);
+            const undeterminedPlaceList = document.createElement('div');
+            undeterminedPlaceList.className = 'day-place-list space-y-2';
+            undeterminedPlaceList.dataset.date = UNDETERMINED_KEY;
+            undeterminedItems.forEach(item => {
+                undeterminedPlaceList.appendChild(createPlaceListItemElement(item));
+            });
+            undeterminedWrapper.appendChild(undeterminedPlaceList);
+            placesList.appendChild(undeterminedWrapper);
+
+            const placesByDay = state.structuredPlan.filter(item => item.date !== UNDETERMINED_KEY).reduce((acc, item) => { (acc[item.date] = acc[item.date] || []).push(item); return acc; }, {});
+            for (let i = 0; i < TOTAL_TRIP_DAYS; i++) {
+                const dayNumber = i + 1;
+                const currentDate = new Date(state.tripStartDate + 'T00:00:00');
+                currentDate.setDate(currentDate.getDate() + i);
+                const dateString = toYYYYMMDD(currentDate);
+                const dayWrapper = document.createElement('div');
+                dayWrapper.className = 'day-section mb-4';
+                const dayHeader = document.createElement('div');
+                dayHeader.className = 'day-section-header flex justify-between items-center text-lg font-semibold text-slate-100 mb-2 py-2 border-b border-slate-700';
+                dayHeader.dataset.date = dateString;
+                
+                let dayTitleHtml = `<span>Day ${dayNumber}</span>`;
+                let dayDetailsHtml;
+
+                if (i === 0) {
+                     dayDetailsHtml = `<input type="date" value="${dateString}" class="day-date-input bg-transparent text-sm font-normal text-slate-400 p-0 border-0 focus:ring-0">`;
+                } else {
+                     dayDetailsHtml = `<span class="text-sm font-normal text-slate-400">${currentDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>`;
+                }
+                
+                const dayNoteHtml = `<input type="text" value="${state.dayNotes[dateString] || ''}" data-date="${dateString}" class="day-note-input flex-grow bg-transparent text-slate-400 text-right text-sm italic border-0 focus:ring-0 p-0" placeholder="Add note...">`;
+
+                dayHeader.innerHTML = `${dayTitleHtml}<div class="flex-grow flex items-center justify-end space-x-4">${dayNoteHtml}${dayDetailsHtml}</div>`;
+                dayWrapper.appendChild(dayHeader);
+
+                const dayPlaceList = document.createElement('div');
+                dayPlaceList.className = 'day-place-list space-y-2';
+                dayPlaceList.dataset.date = dateString;
+                dayWrapper.appendChild(dayPlaceList);
+                if(placesByDay[dateString]) {
+                    placesByDay[dateString].forEach(item => {
+                         dayPlaceList.appendChild(createPlaceListItemElement(item));
+                    });
+                }
+                placesList.appendChild(dayWrapper);
+            }
+        }
+        
+        function createPlaceListItemElement(item) {
+            let optionsHtml = '';
+            for (const category in categoryIcons) {
+                const selected = category === item.category ? 'selected' : '';
+                optionsHtml += `<option value="${category}" ${selected}>${categoryIcons[category].label}</option>`;
+            }
+            const itemEl = document.createElement('div');
+            itemEl.className = 'place-list-item flex items-center p-2 bg-slate-700 rounded-lg hover:bg-slate-600';
+            itemEl.setAttribute('draggable', 'true');
+            itemEl.dataset.id = item.id;
+            const itemColor = categoryIcons[item.category]?.bgColor || '#6b7280';
+            itemEl.innerHTML = `
+                <div class="mr-3">
+                     <select data-id="${item.id}" class="category-select rounded-md border-0 p-2 text-white font-semibold shadow-sm focus:ring-2 focus:ring-offset-2 focus:ring-sky-500" style="background-color: ${itemColor};">
+                        ${optionsHtml}
+                     </select>
+                </div>
+                <div class="flex-grow">
+                    <p class="font-medium text-slate-200">${item.description}</p>
+                    <p class="text-sm text-slate-400">${item.location}</p>
+                </div>
+                <button class="delete-item-btn p-1 text-slate-500 hover:text-red-400 ml-2">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            `;
+            return itemEl;
+        }
+
+        function renderRecommendationsList() {
+            recommendationsList.innerHTML = '';
+            if (state.recommendations.length === 0) {
+                 recommendationsList.innerHTML = `<p class="text-slate-400 text-center">Use the search bar above to get AI recommendations.</p>`;
+                 return;
+            }
+
+            state.recommendations.forEach(item => {
+                let ratingHtml = '';
+                if(item.rating) {
+                    ratingHtml = `<div class="flex items-center text-xs mt-1"><span class="text-amber-400 font-bold">${item.rating}</span><i class="fa-solid fa-star text-amber-400 ml-1"></i><span class="text-slate-400 ml-2">(${item.user_ratings_total || 0})</span></div>`;
+                }
+                const itemEl = document.createElement('div');
+                itemEl.className = 'flex items-start p-3 bg-slate-700 rounded-lg space-x-3';
+                itemEl.innerHTML = `
+                    <img src="${item.photoUrl || 'https://placehold.co/80x80/0f172a/94a3b8?text=N/A'}" class="w-20 h-20 rounded-md object-cover bg-slate-600">
+                    <div class="flex-grow">
+                        <p class="font-semibold text-slate-200">${item.name}</p>
+                        ${ratingHtml}
+                    </div>
+                    <button data-id="${item.id}" class="add-recommendation-btn self-center inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-sky-100 bg-sky-600/50 hover:bg-sky-600">Add</button>
+                `;
+                recommendationsList.appendChild(itemEl);
+            });
+        }
+
+        function renderCalendar() {
+            calendarDiv.innerHTML = '';
+            const tripStartDate = new Date(state.tripStartDate + 'T00:00:00');
+            const tripEndDate = new Date(tripStartDate);
+            tripEndDate.setDate(tripEndDate.getDate() + (TOTAL_TRIP_DAYS + 6));
+            calendarHeader.textContent = `${tripStartDate.toLocaleString('default', { month: 'long' })} ${tripStartDate.getFullYear()}`;
+            const firstDayOfView = new Date(tripStartDate);
+            firstDayOfView.setDate(firstDayOfView.getDate() - firstDayOfView.getDay());
+
+            for (let i = 0; i < 35; i++) { // Render 5 weeks for safety
+                const day = new Date(firstDayOfView);
+                day.setDate(day.getDate() + i);
+                const cell = document.createElement('div');
+                cell.className = 'day-cell border border-slate-700 p-2 h-32 flex flex-col overflow-hidden';
+                if (day.getMonth() !== tripStartDate.getMonth() && day.getMonth() !== tripEndDate.getMonth()) cell.classList.add('bg-slate-800/50', 'text-slate-500');
+                else cell.classList.add('bg-slate-800');
+                const dateString = toYYYYMMDD(day);
+                cell.innerHTML = `<div class="text-xs font-medium">${day.getDate()}</div><div id="day-${dateString}" class="plans-container mt-1 overflow-y-auto"></div>`;
+                calendarDiv.appendChild(cell);
+            }
+            state.structuredPlan.filter(item => item.date !== UNDETERMINED_KEY).forEach(item => updateCalendar(item.date, item.description, item.category));
+        }
+
+        // --- Controller / Logic ---
+        function handleDeleteItem(id) {
+            state.structuredPlan = state.structuredPlan.filter(item => item.id !== id);
+            saveStateToFirestore();
+        }
+
+        async function handleAddPlace() {
+            setLoading(true, 'add');
+            let locationName = addPlaceInput.value.trim();
+            if (!locationName) { setLoading(false, 'add'); return; }
+            const selectedDayValue = daySelect.value;
+            let dateString = (selectedDayValue === UNDETERMINED_KEY) ? UNDETERMINED_KEY : toYYYYMMDD(new Date(new Date(state.tripStartDate + 'T00:00:00').setDate(new Date(state.tripStartDate + 'T00:00:00').getDate() + parseInt(selectedDayValue))));
+            const mapsUrlRegex = /google\.com\/maps\/place\/([^\/@]+)/;
+            const match = locationName.match(mapsUrlRegex);
+            if (match && match[1]) locationName = decodeURIComponent(match[1]).replace(/\+/g, ' ');
+            try {
+                const geocodeResult = await geocodeLocation(locationName);
+                if(!geocodeResult) throw new Error(`Could not find: "${locationName}"`);
+                const category = await getCategoryFromAI(geocodeResult.formattedAddress, Object.keys(categoryIcons));
+                if (!category) throw new Error(`Could not categorize "${locationName}".`);
+                state.structuredPlan.push({ id: crypto.randomUUID(), location: geocodeResult.formattedAddress, description: locationName, date: dateString, category: category.toLowerCase(), lat: geocodeResult.location.lat(), lng: geocodeResult.location.lng(), placeId: geocodeResult.placeId });
+                state.structuredPlan.sort((a,b) => (a.date === UNDETERMINED_KEY) ? -1 : (b.date === UNDETERMINED_KEY ? 1 : new Date(a.date) - new Date(b.date)));
+                addPlaceInput.value = '';
+                await saveStateToFirestore();
+            } catch(error) {
+                showError(error.message);
+            } finally {
+                setLoading(false, 'add');
+            }
+        }
+
+        async function handleRecommend() {
+            setLoading(true, 'recommend');
+            const prompt = recommendPromptInput.value.trim();
+            if (!prompt) { setLoading(false, 'recommend'); return; }
+            recommendationsList.innerHTML = `<p class="text-slate-400 text-center">Finding recommendations...</p>`;
+
+            try {
+                const parsedPrompt = await parseRecommendationPrompt(prompt);
+                if (!parsedPrompt || !parsedPrompt.query) throw new Error("Could not understand your request. Please try rephrasing.");
+
+                let searchCenter = null;
+                if (parsedPrompt.location) {
+                    const geocodeResult = await geocodeLocation(parsedPrompt.location);
+                    if (geocodeResult) searchCenter = geocodeResult.location;
+                }
+                
+                const places = await searchPlacesNearby(searchCenter, parsedPrompt.query);
+                if(places.length === 0) throw new Error("No recommendations found for that query.");
+                
+                const placeDetailsPromises = places.slice(0, 10).map(p => {
+                    return new Promise(resolve => {
+                        const fields = ['name', 'geometry', 'place_id', 'formatted_address', 'types', 'photos', 'rating', 'user_ratings_total'];
+                        placesService.getDetails({ placeId: p.place_id, fields }, (details, status) => {
+                            if (status === google.maps.places.PlacesServiceStatus.OK) resolve(details);
+                            else resolve(null);
+                        });
+                    });
+                });
+
+                const detailedPlaces = await Promise.all(placeDetailsPromises);
+
+                state.recommendations = detailedPlaces.filter(p => p).map(p => {
+                    const category = mapGoogleTypeToCategory(p.types);
+                    return {
+                        id: crypto.randomUUID(),
+                        name: p.name, category: category, location: p.formatted_address,
+                        description: p.name, lat: p.geometry.location.lat(), lng: p.geometry.location.lng(),
+                        placeId: p.place_id, photoUrl: p.photos ? p.photos[0].getUrl({ 'maxWidth': 160, 'maxHeight': 160 }) : null,
+                        rating: p.rating, user_ratings_total: p.user_ratings_total
+                    }
+                });
+                renderRecommendationsList();
+                renderRecommendationMapElements();
+            } catch (error) {
+                showError(error.message);
+                recommendationsList.innerHTML = `<p class="text-red-400 text-center">${error.message}</p>`;
+            } finally {
+                setLoading(false, 'recommend');
+            }
+        }
+        
+        function handleClearRecommendations() {
+            state.recommendations = [];
+            clearRecommendationsFromMap();
+            renderRecommendationsList();
+        }
+
+        async function parseRecommendationPrompt(prompt) {
+             const aiPrompt = `Parse this request: "${prompt}". Extract the search query and the location. Return a valid JSON object with "query" and "location" keys. For example, in "italian food near Eiffel Tower", the query is "italian food" and the location is "Eiffel Tower". If no location is mentioned, return null for the location value.`;
+             const payload = {
+                contents: [{ role: "user", parts: [{ text: aiPrompt }] }],
+                generationConfig: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: { "query": { "type": "STRING" }, "location": { "type": "STRING", "nullable": true } }, required: ["query", "location"] } }
+            };
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${GEMINI_API_KEY}`;
+             try {
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error('AI could not parse the request.');
+                const result = await response.json();
+                return JSON.parse(result.candidates[0].content.parts[0].text);
+            } catch (error) { console.error(error); return null; }
+        }
+
+        function searchPlacesNearby(location, query) {
+            return new Promise((resolve, reject) => {
+                const request = { query: query, fields: ['place_id'] };
+                if (location) { request.location = location; request.radius = '20000'; }
+                placesService.textSearch(request, (results, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK) resolve(results);
+                    else reject(new Error("Could not find any recommendations."));
+                });
+            });
+        }
+        
+        async function getCategoryFromAI(placeName, categories) {
+            const prompt = `Based on "${placeName}", pick one category: ${categories.join(', ')}. Respond with only the single category word.`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${GEMINI_API_KEY}`;
+            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+            try {
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error('AI connection failed.');
+                const result = await response.json();
+                const category = result.candidates[0].content.parts[0].text.trim().toLowerCase();
+                return categoryIcons[category] ? category : 'activity';
+            } catch (error) { return 'activity'; }
+        }
+        
+        function geocodeLocation(address) {
+            return new Promise((resolve) => {
+                geocoder.geocode({ 'address': address }, (results, status) => {
+                    if (status === 'OK' && results[0]) {
+                        resolve({ location: results[0].geometry.location, placeId: results[0].place_id, formattedAddress: results[0].formatted_address });
+                    } else { resolve(null); }
+                });
+            });
+        }
+        
+        function drawRoute(origin, destination) {
+             return new Promise((resolve) => {
+                directionsService.route({ origin, destination, travelMode: 'DRIVING' }, (result, status) => {
+                    if (status === 'OK') {
+                        const renderer = new google.maps.DirectionsRenderer({ suppressMarkers: true, polylineOptions: { strokeColor: '#0ea5e9', strokeWeight: 5, strokeOpacity: 0.8 } });
+                        renderer.setMap(map);
+                        renderer.setDirections(result);
+                        directionsRenderers.push(renderer);
+                    }
+                    resolve();
+                });
+            });
+        }
+
+        function createMarker(position, id, category, isRecommended) {
+            const iconConfig = categoryIcons[category.toLowerCase()];
+            if (!iconConfig) return;
+            const markerEl = document.createElement('div');
+            markerEl.className = 'map-marker';
+            if (isRecommended) markerEl.classList.add('recommended');
+            markerEl.style.backgroundColor = iconConfig.bgColor;
+            markerEl.innerHTML = `<i class="${iconConfig.className}"></i>`;
+            const marker = new window.AdvancedMarkerElement({ map, position, content: markerEl, title: iconConfig.label });
+            marker.addListener('gmp-click', () => {
+                const item = state.structuredPlan.find(p => p.id === id) || state.recommendations.find(r => r.id === id);
+                if (item) showPlaceDetails(marker, item.placeId);
+            });
+            const markerArray = isRecommended ? recommendationMarkers : markers;
+            markerArray.push(marker);
+        }
+
+        function showPlaceDetails(marker, placeId) {
+            infoWindow.close();
+            infoWindow.setContent('<div class="p-4 text-center text-slate-400">Loading details...</div>');
+            infoWindow.open({map, anchor: marker});
+            const fields = ['name', 'photos', 'rating', 'user_ratings_total', 'url', 'website', 'formatted_address'];
+            placesService.getDetails({ placeId, fields }, (place, status) => {
+                if (status !== google.maps.places.PlacesServiceStatus.OK || !place) {
+                    infoWindow.setContent('<div class="p-4">Could not load details.</div>');
+                    return;
+                }
+                
+                let photoHtml = '';
+                const photos = place.photos;
+                if (photos && photos.length > 0) {
+                    photoHtml += `<div class="photo-carousel" data-place-id="${placeId}"><img src="${photos[0].getUrl({'maxWidth': 400, 'maxHeight': 400})}" class="carousel-image">`;
+                    if (photos.length > 1) {
+                        photoHtml += `<button class="carousel-button prev">&lt;</button><button class="carousel-button next">&gt;</button><div class="carousel-counter">1 / ${photos.length}</div>`;
+                    }
+                    photoHtml += `</div>`;
+                } else {
+                    photoHtml = `<div class="h-48 bg-slate-700 flex items-center justify-center text-slate-400">No Image</div>`;
+                }
+
+                let ratingHtml = '';
+                if(place.rating) {
+                    ratingHtml = `<div class="flex items-center text-sm"><span class="text-amber-400 font-bold">${place.rating}</span><i class="fa-solid fa-star text-amber-400 ml-1"></i><span class="text-slate-400 ml-2">(${place.user_ratings_total} reviews)</span></div>`;
+                }
+
+                let buttonsHtml = '<div class="flex space-x-2">';
+                if(place.website) {
+                     buttonsHtml += `<a href="${place.website}" target="_blank" class="flex-1 text-center bg-slate-600 hover:bg-slate-500 text-slate-200 text-sm font-semibold py-2 px-3 rounded-md transition-colors">Website</a>`;
+                }
+                buttonsHtml += `<a href="${place.url}" target="_blank" class="flex-1 text-center bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold py-2 px-3 rounded-md transition-colors">View on Maps</a>`;
+                buttonsHtml += '</div>';
+
+                let content = `
+                    <div class="w-72">
+                        ${photoHtml}
+                        <div class="p-4 space-y-3">
+                             <h3 class="font-bold text-lg text-slate-100">${place.name}</h3>
+                             <p class="text-sm text-slate-400">${place.formatted_address || ''}</p>
+                             ${ratingHtml}
+                             ${buttonsHtml}
+                        </div>
+                    </div>
+                `;
+                
+                infoWindow.setContent(content);
+                if (photos && photos.length > 1) {
+                    google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+                        const carousel = document.querySelector(`.photo-carousel[data-place-id="${placeId}"]`);
+                        if (!carousel) return;
+                        const img = carousel.querySelector('.carousel-image'), prevBtn = carousel.querySelector('.prev'), nextBtn = carousel.querySelector('.next'), counter = carousel.querySelector('.carousel-counter');
+                        let currentIndex = 0;
+                        function updatePhoto() { img.src = photos[currentIndex].getUrl({'maxWidth': 400, 'maxHeight': 400}); counter.textContent = `${currentIndex + 1} / ${photos.length}`; }
+                        if(prevBtn && nextBtn) {
+                           prevBtn.addEventListener('click', () => { currentIndex = (currentIndex > 0) ? currentIndex - 1 : photos.length - 1; updatePhoto(); });
+                           nextBtn.addEventListener('click', () => { currentIndex = (currentIndex < photos.length - 1) ? currentIndex + 1 : 0; updatePhoto(); });
+                        }
+                    });
+                }
+            });
+        }
+        
+        function updateCalendar(dateString, description, category) {
+            const dayCell = document.getElementById(`day-${dateString}`);
+            if (dayCell) {
+                const iconConfig = categoryIcons[category.toLowerCase()]; if (!iconConfig) return;
+                const colorClass = { hotel: 'bg-red-900/50 text-red-200', restaurant: 'bg-green-900/50 text-green-200', bar: 'bg-cyan-900/50 text-cyan-200', activity: 'bg-yellow-900/50 text-yellow-200', museum: 'bg-purple-900/50 text-purple-200', antique: 'bg-pink-900/50 text-pink-200', swimming: 'bg-blue-900/50 text-blue-200'}[category.toLowerCase()];
+                const iconHtml = `<i class="${iconConfig.className}"></i>`;
+                dayCell.innerHTML += `<div class="plan-item ${colorClass}">${iconHtml}<span>${description}</span></div>`;
+            }
+        }
+        function showError(message) { errorMessageDiv.textContent = message; errorMessageDiv.classList.remove('hidden'); }
+        function toYYYYMMDD(date) { return date.toISOString().split('T')[0]; }
+        function setLoading(isLoading, type) {
+            const button = type === 'add' ? addPlaceButton : recommendButton;
+            const loader = type === 'add' ? addLoader : recommendLoader;
+            const text = type === 'add' ? addButtonText : recommendButtonText;
+            button.disabled = isLoading;
+            loader.classList.toggle('hidden', !isLoading);
+            text.classList.toggle('hidden', isLoading);
+        }
+
+        function mapGoogleTypeToCategory(types) {
+            if (!types) return 'activity';
+            if (types.includes('lodging')) return 'hotel';
+            if (types.includes('restaurant') || types.includes('cafe') || types.includes('food')) return 'restaurant';
+            if (types.includes('bar') || types.includes('night_club')) return 'bar';
+            if (types.includes('museum')) return 'museum';
+            if (types.includes('store')) return 'antique';
+            if (types.includes('amusement_park') || types.includes('tourist_attraction')) return 'activity';
+            if (types.includes('spa') || types.includes('beach') || types.includes('swimming_pool')) return 'swimming';
+            return 'activity';
+        }
+        
+        function focusMapOnDay(date) {
+            if (!state.mapReady) return;
+            const bounds = new google.maps.LatLngBounds();
+            const dayItems = state.structuredPlan.filter(item => item.date === date);
+            if (dayItems.length === 0) return;
+            dayItems.forEach(item => {
+                bounds.extend(new google.maps.LatLng(item.lat, item.lng));
+            });
+            map.fitBounds(bounds);
+        }
+
+        function focusMapOnAll() {
+             if (!state.mapReady) return;
+            const bounds = new google.maps.LatLngBounds();
+            state.structuredPlan.filter(item => item.date !== UNDETERMINED_KEY).forEach(item => {
+                 bounds.extend(new google.maps.LatLng(item.lat, item.lng));
+            });
+            if (!bounds.isEmpty()) {
+                map.fitBounds(bounds);
+            }
+        }
+
+        // --- Event Listeners ---
+        addPlaceButton.addEventListener('click', handleAddPlace);
+        addPlaceInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAddPlace(); });
+        recommendButton.addEventListener('click', handleRecommend);
+        recommendPromptInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleRecommend(); });
+        clearRecommendButton.addEventListener('click', handleClearRecommendations);
+
+        function setActiveTab(activeTab) {
+            [tabPlaces, tabCalendar, tabRecommend].forEach(tab => tab.classList.remove('active'));
+            [placesContent, calendarContent, recommendContent].forEach(content => content.classList.add('hidden'));
+            activeTab.button.classList.add('active');
+            activeTab.content.classList.remove('hidden');
+            leftPanel.classList.toggle('lg:w-full', activeTab.fullWidth);
+            leftPanel.classList.toggle('lg:w-1/2', !activeTab.fullWidth);
+            mapPanel.classList.toggle('hidden', activeTab.fullWidth);
+            
+            const isRecommendTabActive = activeTab.button === tabRecommend;
+            if (isRecommendTabActive) {
+                renderRecommendationMapElements();
+            } else {
+                clearRecommendationsFromMap();
+            }
+        }
+        tabPlaces.addEventListener('click', () => setActiveTab({ button: tabPlaces, content: placesContent, fullWidth: false }));
+        tabRecommend.addEventListener('click', () => setActiveTab({ button: tabRecommend, content: recommendContent, fullWidth: false }));
+        tabCalendar.addEventListener('click', () => setActiveTab({ button: tabCalendar, content: calendarContent, fullWidth: true }));
+
+        placesList.addEventListener('click', (e) => {
+            const deleteButton = e.target.closest('.delete-item-btn');
+            if (deleteButton) { 
+                const itemId = deleteButton.closest('.place-list-item').dataset.id; 
+                handleDeleteItem(itemId);
+            }
+            const header = e.target.closest('.day-section-header.collapsible');
+            if(header){
+                const list = header.parentElement.querySelector('.day-place-list');
+                const icon = header.querySelector('.collapsible-icon');
+                list.classList.toggle('hidden');
+                icon.classList.toggle('rotate-180');
+            }
+        });
+
+        placesList.addEventListener('mouseover', (e) => {
+            const dayHeader = e.target.closest('.day-section-header');
+            if (dayHeader && dayHeader.dataset.date) {
+                focusMapOnDay(dayHeader.dataset.date);
+            }
+        });
+        placesList.addEventListener('mouseout', (e) => {
+            const dayHeader = e.target.closest('.day-section-header');
+            if (dayHeader) {
+                focusMapOnAll();
+            }
+        });
+        
+        placesList.addEventListener('change', (e) => {
+            if (e.target.classList.contains('category-select')) { 
+                const itemToUpdate = state.structuredPlan.find(p => p.id === e.target.dataset.id); 
+                if (itemToUpdate) { 
+                    itemToUpdate.category = e.target.value; 
+                    saveStateToFirestore();
+                } 
+            }
+            if(e.target.classList.contains('day-date-input')) {
+                state.structuredPlan = state.structuredPlan.map(item => {
+                    if(item.date !== UNDETERMINED_KEY) {
+                        item.date = UNDETERMINED_KEY;
+                    }
+                    return item;
+                });
+                state.tripStartDate = e.target.value;
+                saveStateToFirestore();
+            }
+            if(e.target.classList.contains('day-note-input')) {
+                state.dayNotes[e.target.dataset.date] = e.target.value;
+                saveStateToFirestore();
+            }
+        });
+        recommendationsList.addEventListener('click', e => {
+            const addButton = e.target.closest('.add-recommendation-btn');
+            if(addButton){
+                const recId = addButton.dataset.id;
+                const recToAdd = state.recommendations.find(r => r.id === recId);
+                if(recToAdd) {
+                    recToAdd.date = UNDETERMINED_KEY;
+                    const { photoUrl, rating, user_ratings_total, ...planItem } = recToAdd; 
+                    state.structuredPlan.push(planItem);
+                    state.recommendations = state.recommendations.filter(r => r.id !== recId);
+                    saveStateToFirestore();
+                    renderRecommendationsList();
+                    renderRecommendationMapElements();
+                }
+            }
+        });
+        let draggedItem = null;
+        placesList.addEventListener('dragstart', (e) => { draggedItem = e.target.closest('.place-list-item'); if (draggedItem) draggedItem.classList.add('dragging'); });
+        placesList.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const targetList = e.target.closest('.day-place-list');
+            if (!targetList || !draggedItem) return;
+            const afterElement = getDragAfterElement(targetList, e.clientY);
+            targetList.insertBefore(draggedItem, afterElement);
+        });
+        placesList.addEventListener('dragend', () => {
+            if(!draggedItem) return;
+            const newPlan = [];
+            document.querySelectorAll('.day-place-list').forEach(dayList => {
+                const date = dayList.dataset.date;
+                dayList.querySelectorAll('.place-list-item').forEach(itemEl => {
+                    const item = state.structuredPlan.find(p => p.id === itemEl.dataset.id);
+                    if(item) { item.date = date; newPlan.push(item); }
+                });
+            });
+            state.structuredPlan = newPlan.sort((a,b) => (a.date === UNDETERMINED_KEY) ? -1 : (b.date === UNDETERMINED_KEY ? 1 : new Date(a.date) - new Date(b.date)));
+            draggedItem.classList.remove('dragging');
+            draggedItem = null;
+            saveStateToFirestore();
+        });
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.place-list-item:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = y - box.top - box.height / 2; if (offset < 0 && offset > closest.offset) { return { offset: offset, element: child }; } else { return closest; } }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        // --- Initial Load ---
+        function populateDaySelect() {
+            daySelect.innerHTML = '';
+            const option = document.createElement('option');
+            option.value = UNDETERMINED_KEY;
+            option.textContent = 'Undetermined';
+            daySelect.appendChild(option);
+            for (let i = 0; i < TOTAL_TRIP_DAYS; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `Day ${i + 1}`;
+                daySelect.appendChild(option);
+            }
+        }
+        window.addEventListener('load', () => {
+            // Firebase onAuthStateChanged handles initial load
+            populateDaySelect();
+            generateLegend();
+        });
+        function generateLegend() {
+            legendItems.innerHTML = '';
+            for (const category in categoryIcons) {
+                const item = categoryIcons[category];
+                const iconHtml = `<div class="map-marker" style="background-color: ${item.bgColor};"><i class="${item.className}"></i></div>`;
+                legendItems.innerHTML += `<div class="flex items-center text-sm">${iconHtml}<span class="ml-2 text-slate-300">${item.label}</span></div>`;
+            }
+        }
+
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&callback=initMap&libraries=places,marker&v=beta`;
+        script.async = true;
+        document.head.appendChild(script);
+
+    </script>
+</body>
+</html>
+
+
+
